@@ -23,14 +23,28 @@ class PathOutsideRootError(OSError):
 
 
 class PathRoot(Path):
-    """Base class for a path that does not allow traversal outside."""
+    """Base class for a path that does not allow traversal outside.
+
+    Notes:
+        When a PathRoot is first instantiated, if a `safe_root` is not provided, then
+        the current directory is used as the SafeRoot. All methods that mutate the path
+        or work off of additional provided paths have those paths resolved and checked
+        against the safe root. If the resolved path is not relative to the safe root,
+        then a `PathOutsideRootError` is raised.
+    """
 
     def __new__(cls, *args, **kwargs):
+        """Generate the OS-specific subclass based on the current OS."""
         if cls is PathRoot:
             cls = WindowsPathRoot if OS_NAME == "nt" else PosixPathRoot
         return object.__new__(cls)
 
     def __init__(self, *args, safe_root: Path | None = None):
+        """Prepare a PathRoot for use.
+
+        Args:
+            safe_root: Root path to use for all operations. Defaults to None (current path is used).
+        """
         LOG.debug("Creating new %s from %r with root %r", type(self), args, safe_root)
         super().__init__(*args)
 
@@ -46,7 +60,7 @@ class PathRoot(Path):
                 safe_root = Path(self)
         self.safe_root = safe_root
 
-    def __check_path(self, path: Path) -> Path:
+    def __check_path(self, path: Path | PathRoot) -> PathRoot:
         """Check if a path traverses outside of the root path."""
         p = Path(path).resolve()
         if not p.is_relative_to(self.safe_root):
@@ -63,7 +77,7 @@ class PathRoot(Path):
 
         return path
 
-    def with_segments(self, *args) -> Path:
+    def with_segments(self, *args) -> PathRoot:
         """Return a new path with segments.
 
         Returns:
@@ -71,6 +85,55 @@ class PathRoot(Path):
         """
         LOG.debug("with_segments called with %r", args)
         return self.__check_path(super().with_segments(*args))
+
+    def rename(self, target: Path | str) -> PathRoot:
+        """Rename this path to the target path.
+
+        Args:
+            target: Target path. Must be in the root.
+
+        Returns:
+            New PathRoot instance pointing to the target path.
+
+        Notes:
+            The target path may be absolute or relative. Relative paths are
+            interpreted relative to the current working directory *not* the
+            directory of the Path object.
+        """
+        return super().rename(self.__check_path(target))
+
+    def replace(self, target: Path | str) -> PathRoot:
+        """Rename this path to the target path, overwriting if that path exists.
+
+        Args:
+            target: Target path. Must be in the root.
+
+        Returns:
+            New PathRoot instance pointing to the target path.
+
+        Notes:
+            The target path may be absolute or relative. Relative paths are
+            interpreted relative to the current working directory *not* the
+            directory of the Path object.
+        """
+        return super().replace(self.__check_path(target))
+
+    def symlink_to(self, target: Path | str, target_is_directory=False) -> None:
+        """Make this path a symlink pointing to the target path.
+
+        Args:
+            target: Target to link to. Must be inside root path.
+            target_is_directory: Should the target be treated as a directory (only valid for Windows). Defaults to False.
+        """
+        return super().symlink_to(self.__check_path(target), target_is_directory)
+
+    def hardlink_to(self, target: Path | str) -> None:
+        """Make this path a hard link pointing to the same file as *target*.
+
+        Args:
+            target: Target to link to. Must be inside the root path.
+        """
+        return super().hardlink_to(self.__check_path(target))
 
 
 class PosixPathRoot(PosixPath, PathRoot):
