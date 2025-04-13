@@ -14,11 +14,19 @@ class PathOutsideRootError(OSError):
     """Exception to raise when a path traverses outside a root."""
 
     def __init__(self, path: Path, root: PathRoot, *args):
+        """Prepare a PathOutsideRootError for use.
+
+        Args:
+            path: Target path.
+            root: Trusted root path.
+            *args: Arguments passed to OSError.
+        """
         super().__init__(*args)
         self.path = path
         self.root = root
 
-    def __str__(self):
+    def __str__(self) -> str:
+        """String message."""
         return f"Path {self.path} ({self.path.resolve()}) is outside of {self.root}."
 
 
@@ -33,7 +41,7 @@ class PathRoot(Path):
         then a `PathOutsideRootError` is raised.
     """
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args, **kwargs) -> WindowsPathRoot | PosixPathRoot:  # noqa: ARG004
         """Generate the OS-specific subclass based on the current OS."""
         if cls is PathRoot:
             cls = WindowsPathRoot if OS_NAME == "nt" else PosixPathRoot
@@ -43,6 +51,7 @@ class PathRoot(Path):
         """Prepare a PathRoot for use.
 
         Args:
+            *args: Path segments, passed to Path.
             safe_root: Root path to use for all operations. Defaults to None (current path is used).
         """
         LOG.debug("Creating new %s from %r with root %r", type(self), args, safe_root)
@@ -58,17 +67,27 @@ class PathRoot(Path):
             else:  # no break
                 # Set the safe_root to this path.
                 safe_root = Path(self)
-        self.safe_root = safe_root
+        self.safe_root = safe_root.resolve()  # Ensure safe_root is resolved.
 
     def __check_path(self, path: Path | PathRoot) -> PathRoot:
-        """Check if a path traverses outside of the root path."""
+        """Check if a path traverses outside.
+
+        Args:
+            path: Path to check.
+
+        Returns:
+            The tested path.
+
+        Raises:
+            PathOutsideRootError: If the path traverses outside of the root path.
+        """
         p = Path(path).resolve()
         if not p.is_relative_to(self.safe_root):
-            raise PathOutsideRootError(path, self)
+            raise PathOutsideRootError(path, self.safe_root)
 
         match path:
             # If the path is a PathRoot with no safe_root set, set it.
-            case PathRoot() if path.safe_root is None:
+            case PathRoot():
                 path.safe_root = self.safe_root
 
             # If the path is not a PathRoot, make it one.
@@ -79,6 +98,9 @@ class PathRoot(Path):
 
     def with_segments(self, *args) -> PathRoot:
         """Return a new path with segments.
+
+        Args:
+            *args: Path segments.
 
         Returns:
             New path.
@@ -118,7 +140,7 @@ class PathRoot(Path):
         """
         return super().replace(self.__check_path(target))
 
-    def symlink_to(self, target: Path | str, target_is_directory=False) -> None:
+    def symlink_to(self, target: Path | str, target_is_directory: bool = False) -> None:
         """Make this path a symlink pointing to the target path.
 
         Args:
