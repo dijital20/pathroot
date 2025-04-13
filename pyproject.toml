@@ -19,3 +19,53 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["pathroot"]
+
+[tool.ruff]
+line-length = 120
+respect-gitignore = true
+
+[tool.ruff.lint]
+select = [
+    "C90",  # mccabe
+    "I",    # iSort
+    "N",    # pep8-naming
+    "D",    # pydocstyle
+    "ANN",  # flake8-annotations
+    "S",    # flake8-bandit
+    "B",    # flake8-bugbear
+    "A",    # flake8-builtins
+    "COM",  # flake8-commas
+    "C4",   # flake8-comprehensions
+    "EM",   # flake8-errmsg
+    "FA",   # flake8-future-annotations
+    "ISC",  # flake8-implicit-str-concat
+    "LOG",  # flake8-logging
+    "G",    # flake8-logging-format
+    "T20",  # flake8-print
+    "Q",    # flake8-quotes
+    "SIM",  # flake8-simplify
+    "ARG",  # flake8-unused-arguments
+    "PT",   # flake8-pytest-style
+    "PTH",  # flake8-use-pathlib
+    "PERF", # perflint
+    "RUF",  # Ruff-specific rules
+]
+
+ignore = [
+    "ANN002", # No need to type *args
+    "ANN003", # No need to type **kwargs
+    "ANN101", # No need to type self
+]
+
+[tool.ruff.extend-per-file-ignores]
+"test_*.py" = [ # Pytest tests
+    "ANN001", # No need to type hint fixtures
+    "T201",   # Print is fine in unit tests
+    "S101",   # assert is kinda the reason we're here...
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-annotations]
+suppress-none-returning = true
