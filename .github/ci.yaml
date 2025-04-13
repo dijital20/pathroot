@@ -1,6 +1,4 @@
-# Continuous Integration
-
-name: Convert md to html
+name: Continuous Integration
 on: push
 jobs:
   build:
