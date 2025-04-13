@@ -54,10 +54,9 @@ select = [
 ignore = [
     "ANN002", # No need to type *args
     "ANN003", # No need to type **kwargs
-    "ANN101", # No need to type self
 ]
 
-[tool.ruff.extend-per-file-ignores]
+[tool.ruff.lint.extend-per-file-ignores]
 "test_*.py" = [ # Pytest tests
     "ANN001", # No need to type hint fixtures
     "T201",   # Print is fine in unit tests
