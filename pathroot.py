@@ -54,7 +54,6 @@ class PathRoot(Path):
             *args: Path segments, passed to Path.
             safe_root: Root path to use for all operations. Defaults to None (current path is used).
         """
-        LOG.debug("Creating new %s from %r with root %r", type(self), args, safe_root)
         super().__init__(*args)
 
         # If the safe_root is None, then one was not provided. Look through the args
@@ -68,6 +67,11 @@ class PathRoot(Path):
                 # Set the safe_root to this path.
                 safe_root = Path(self)
         self.safe_root = safe_root.resolve()  # Ensure safe_root is resolved.
+        LOG.debug("Created %r", self)
+
+    def __repr__(self) -> str:
+        """Internal string representation."""
+        return f"{type(self).__name__}({self.as_posix()!r}, safe_root={self.safe_root.as_posix()!r})"
 
     def __check_path(self, path: Path | PathRoot) -> PathRoot:
         """Check if a path traverses outside.
@@ -82,6 +86,7 @@ class PathRoot(Path):
             PathOutsideRootError: If the path traverses outside of the root path.
         """
         p = Path(path).resolve()
+        LOG.debug("Testing %s against %s", p, self.safe_root)
         if not p.is_relative_to(self.safe_root):
             raise PathOutsideRootError(path, self.safe_root)
 
@@ -105,7 +110,6 @@ class PathRoot(Path):
         Returns:
             New path.
         """
-        LOG.debug("with_segments called with %r", args)
         return self.__check_path(super().with_segments(*args))
 
     def rename(self, target: Path | str) -> PathRoot:
