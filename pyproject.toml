@@ -17,8 +17,8 @@ dev = ["ruff", "pytest"]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.packages.find]
-include = ["pathroot"]
+[tool.setuptools]
+py-modules = ["pathroot"]
 
 [tool.ruff]
 line-length = 120
