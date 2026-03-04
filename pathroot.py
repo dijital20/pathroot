@@ -13,7 +13,7 @@ OS_NAME = os.name
 class PathOutsideRootError(OSError):
     """Exception to raise when a path traverses outside a root."""
 
-    def __init__(self, path: Path, root: PathRoot, *args):
+    def __init__(self, path: Path, root: Path, *args):
         """Prepare a PathOutsideRootError for use.
 
         Args:
@@ -47,7 +47,11 @@ class PathRoot(Path):
             cls = WindowsPathRoot if OS_NAME == "nt" else PosixPathRoot
         return object.__new__(cls)
 
-    def __init__(self, *args, safe_root: Path | None = None):
+    def __init__(
+        self,
+        *args,
+        safe_root: Path | None = None,
+    ):
         """Prepare a PathRoot for use.
 
         Args:
@@ -58,14 +62,19 @@ class PathRoot(Path):
 
         # If the safe_root is None, then one was not provided. Look through the args
         # and see if we have any PathRoot instances... first one wins.
-        if safe_root is None:
-            for arg in args:
-                if isinstance(arg, PathRoot):
-                    safe_root = arg.safe_root
-                    break
-            else:  # no break
-                # Set the safe_root to this path.
-                safe_root = Path(self)
+        match safe_root:
+            case str() | bytes() | os.PathLike() | Path():
+                safe_root = Path(safe_root)
+
+            case _:
+                for arg in args:
+                    if isinstance(arg, PathRoot):
+                        safe_root = arg.safe_root
+                        break
+                else:  # no break
+                    # Set the safe_root to this path.
+                    safe_root = Path(self)
+
         self.safe_root = safe_root.resolve()  # Ensure safe_root is resolved.
         LOG.debug("Created %r", self)
 
@@ -73,7 +82,10 @@ class PathRoot(Path):
         """Internal string representation."""
         return f"{type(self).__name__}({self.as_posix()!r}, safe_root={self.safe_root.as_posix()!r})"
 
-    def __check_path(self, path: Path | PathRoot) -> PathRoot:
+    def __check_path(
+        self,
+        path: PathRoot | os.PathLike[str] | os.PathLike[bytes] | str | bytes,
+    ) -> PathRoot:
         """Check if a path traverses outside.
 
         Args:
@@ -85,10 +97,16 @@ class PathRoot(Path):
         Raises:
             PathOutsideRootError: If the path traverses outside of the root path.
         """
-        p = Path(path).resolve()
+        match path:
+            case bytes():
+                p = Path(path.decode("UTF-8")).resolve()
+
+            case os.PathLike() | str():
+                p = Path(path).resolve()  # ty:ignore[invalid-argument-type]
+
         LOG.debug("Testing %s against %s", p, self.safe_root)
         if not p.is_relative_to(self.safe_root):
-            raise PathOutsideRootError(path, self.safe_root)
+            raise PathOutsideRootError(p, self.safe_root)
 
         match path:
             # If the path is a PathRoot with no safe_root set, set it.
@@ -96,8 +114,11 @@ class PathRoot(Path):
                 path.safe_root = self.safe_root
 
             # If the path is not a PathRoot, make it one.
-            case Path() if not isinstance(path, PathRoot):
+            case Path() | str() | bytes() | os.PathLike() if not isinstance(path, PathRoot):
                 path = PathRoot(path, safe_root=self.safe_root)
+
+            case _:
+                raise TypeError
 
         return path
 
@@ -110,9 +131,12 @@ class PathRoot(Path):
         Returns:
             New path.
         """
-        return self.__check_path(super().with_segments(*args))
+        return self.__check_path(super().with_segments(*args))  # ty:ignore[unresolved-attribute]
 
-    def rename(self, target: Path | str) -> PathRoot:
+    def rename(
+        self,
+        target: os.PathLike[str] | str,
+    ) -> PathRoot:
         """Rename this path to the target path.
 
         Args:
@@ -128,7 +152,10 @@ class PathRoot(Path):
         """
         return super().rename(self.__check_path(target))
 
-    def replace(self, target: Path | str) -> PathRoot:
+    def replace(
+        self,
+        target: os.PathLike[str] | str,
+    ) -> PathRoot:
         """Rename this path to the target path, overwriting if that path exists.
 
         Args:
@@ -144,7 +171,11 @@ class PathRoot(Path):
         """
         return super().replace(self.__check_path(target))
 
-    def symlink_to(self, target: Path | str, target_is_directory: bool = False) -> None:
+    def symlink_to(
+        self,
+        target: os.PathLike[str] | os.PathLike[bytes] | str | bytes,
+        target_is_directory: bool = False,
+    ) -> None:
         """Make this path a symlink pointing to the target path.
 
         Args:
@@ -153,7 +184,10 @@ class PathRoot(Path):
         """
         return super().symlink_to(self.__check_path(target), target_is_directory)
 
-    def hardlink_to(self, target: Path | str) -> None:
+    def hardlink_to(
+        self,
+        target: os.PathLike[str] | os.PathLike[bytes] | str | bytes,
+    ) -> None:
         """Make this path a hard link pointing to the same file as *target*.
 
         Args:
