@@ -55,7 +55,7 @@ def fix_os_name(v: str):
         v: Value to set OS_NAME to.
     """
     old_val = pathroot.OS_NAME
-    pathroot.OS_NAME = v
+    pathroot.OS_NAME = v  # ty:ignore[invalid-assignment]
     LOG.info("** Set OS_NAME to %r", v)
     try:
         yield
