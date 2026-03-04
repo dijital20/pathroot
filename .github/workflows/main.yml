@@ -14,10 +14,13 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Sync dev dependencies
-        run: uv sync --extra dev
+        run: uv sync --dev
 
-      - name: Run ruff
+      - name: Run ruff lint check
         run: uv run ruff check .
+
+      - name: Run ruff format check
+        run: uv run ruff format . --check
 
       - name: Run pytest
         run: uv run pytest
