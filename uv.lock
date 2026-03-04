@@ -54,6 +54,7 @@ dev = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "pytest" },
     { name = "ty" },
 ]
 
@@ -65,7 +66,10 @@ requires-dist = [
 provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "ty", specifier = ">=0.0.20" }]
+dev = [
+    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "ty", specifier = ">=0.0.20" },
+]
 
 [[package]]
 name = "pluggy"
