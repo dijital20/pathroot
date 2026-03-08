@@ -1,26 +1,76 @@
 name: Continuous Integration
 on: push
+
+permissions:
+  contents: read
+
 jobs:
-  build:
-    # The type of runner that the job will run on
+  lint:
+    name: Lint and Format
     runs-on: ubuntu-latest
-    permissions: write-all
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Run ruff lint check
+        run: uv run ruff check .
+
+      - name: Run ruff format check
+        run: uv run ruff format . --check
+
+  test:
+    name: Test Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    needs: lint
+
+    strategy:
+      matrix:
+        python-version:
+          - "3.12"
+          - "3.13"
+          - "3.14"
+          - "3.15"
+      fail-fast: false
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Sync dev dependencies
+        run: uv sync --dev
+
+      - name: Run pytest
+        run: uv run pytest
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Install the latest version of uv
         uses: astral-sh/setup-uv@v5
 
       - name: Sync dev dependencies
-        run: uv sync --extra dev
-
-      - name: Run ruff
-        run: uv run ruff check .
-
-      - name: Run pytest
-        run: uv run pytest
+        run: uv sync --dev
 
       - name: Build
         run: uv build
