@@ -79,21 +79,6 @@ class PathRoot(Path):
 
         LOG.debug("Created %r", self)
 
-    def __setattr__(self, name: str, value: object) -> None:
-        """Override setattr to make safe_root immutable after initialization.
-
-        Args:
-            name: Attribute name.
-            value: Attribute value.
-
-        Raises:
-            AttributeError: If trying to modify safe_root after initialization.
-        """
-        if name == "_safe_root" and hasattr(self, "_safe_root"):
-            msg = "safe_root is immutable and can only be set during initialization"
-            raise AttributeError(msg)
-        super().__setattr__(name, value)
-
     @property
     def safe_root(self) -> Path:
         """Get the safe root path.
@@ -113,6 +98,9 @@ class PathRoot(Path):
         Raises:
             AttributeError: If safe_root has already been set.
         """
+        if hasattr(self, "_PathRoot__safe_root"):
+            msg = "safe_root is read-only after initialization"
+            raise AttributeError(msg)
         self.__safe_root = value
 
     def __repr__(self) -> str:
