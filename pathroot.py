@@ -111,35 +111,24 @@ class PathRoot(Path):
         Raises:
             PathOutsideRootError: If the path traverses outside of the root path.
         """
+        # Normalize input into a resolved pathlib.Path using structural pattern matching
         match path:
             case bytes():
                 p = Path(path.decode("UTF-8")).resolve()
 
-            case os.PathLike() | str():
-                p = Path(path).resolve()  # ty:ignore[invalid-argument-type]
+            case Path() | str() | os.PathLike():
+                p = Path(path).resolve()
+
+            case _:
+                msg = f"Unsupported path type: {type(path)!r}"
+                raise TypeError(msg)
 
         LOG.debug("Testing %r against %r", p, self.safe_root)
         if not p.is_relative_to(self.safe_root):
             raise PathOutsideRootError(p, self.safe_root)
 
-        match path:
-            # If the path is a PathRoot, ensure it has the correct safe_root
-            case PathRoot():
-                # Create a new PathRoot with the correct safe_root if needed
-                if path.safe_root != self.safe_root:
-                    path = PathRoot(path, safe_root=self.safe_root)
-
-            # If the path is not a PathRoot, make it one.
-            case bytes():
-                path = PathRoot(path.decode("UTF-8"), safe_root=self.safe_root)
-
-            case Path() | str() | os.PathLike() if not isinstance(path, PathRoot):
-                path = PathRoot(path, safe_root=self.safe_root)
-
-            case _:
-                raise TypeError
-
-        return path
+        # Preserve the runtime subclass when returning a PathRoot-like object
+        return type(self)(p, safe_root=self.safe_root)
 
     def with_segments(self, *args) -> PathRoot:
         """Return a new path with segments.
@@ -150,7 +139,9 @@ class PathRoot(Path):
         Returns:
             New path.
         """
-        return self.__check_path(super().with_segments(*args))  # ty:ignore[unresolved-attribute]
+        # Build a Path from the provided segments and validate it.
+        p = Path(*args)
+        return self.__check_path(p)
 
     def rename(
         self,
@@ -170,7 +161,7 @@ class PathRoot(Path):
             directory of the Path object.
         """
         result = super().rename(self.__check_path(target))
-        return PathRoot(result, safe_root=self.safe_root)
+        return type(self)(result, safe_root=self.safe_root)
 
     def replace(
         self,
@@ -190,7 +181,7 @@ class PathRoot(Path):
             directory of the Path object.
         """
         result = super().replace(self.__check_path(target))
-        return PathRoot(result, safe_root=self.safe_root)
+        return type(self)(result, safe_root=self.safe_root)
 
     def symlink_to(
         self,
