@@ -363,3 +363,59 @@ def test_hardlink_to_accepts_bytes_target_and_calls_super(monkeypatch, tmp_path)
 
 
 # endregion
+
+
+# region Tests - Actual Link Creation (Edge Cases)
+def test_symlink_to_creates_link_for_inside_target(tmp_path):
+    """Test that symlink_to actually creates a link when target is inside root."""
+    # Arrange
+    root = tmp_path
+    target = root / "inside.txt"
+    target.write_bytes(b"inside")
+    link = pathroot.PathRoot(root) / "mylink"
+
+    # Act
+    link.symlink_to(target)
+
+    # Assert
+    assert link.exists()
+    assert link.is_symlink()
+    # reading via the symlink should give the same bytes
+    assert (root / "mylink").read_bytes() == b"inside"
+
+
+def test_symlink_to_rejects_actual_outside_target(tmp_path):
+    """Test that symlink_to raises when target is an actual file outside the root."""
+    # Arrange
+    root = tmp_path
+    outside_dir = tmp_path.parent / (tmp_path.name + "_outside")
+    outside_dir.mkdir(exist_ok=True)
+    outside_file = outside_dir / "outside.txt"
+    outside_file.write_bytes(b"outside")
+
+    pr = pathroot.PathRoot(root)
+    link = pr / "badlink"
+
+    # Act / Assert
+    with pytest.raises(pathroot.PathOutsideRootError):
+        link.symlink_to(outside_file)
+
+
+def test_hardlink_to_rejects_actual_outside_target(tmp_path):
+    """Test that hardlink_to raises when target is an actual file outside the root."""
+    # Arrange
+    root = tmp_path
+    outside_dir = tmp_path.parent / (tmp_path.name + "_outside_hl")
+    outside_dir.mkdir(exist_ok=True)
+    outside_file = outside_dir / "outside_hl.txt"
+    outside_file.write_bytes(b"outside-hl")
+
+    pr = pathroot.PathRoot(root)
+    link = pr / "badhardlink"
+
+    # Act / Assert
+    with pytest.raises(pathroot.PathOutsideRootError):
+        link.hardlink_to(outside_file)
+
+
+# endregion
