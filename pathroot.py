@@ -64,18 +64,18 @@ class PathRoot(Path):
         # and see if we have any PathRoot instances... first one wins.
         match safe_root:
             case str() | bytes() | os.PathLike() | Path():
-                self._safe_root = Path(safe_root).resolve()
+                self.__safe_root = Path(safe_root).resolve()
 
             case _:
                 for arg in args:
                     if isinstance(arg, PathRoot):
-                        self._safe_root = arg.safe_root
+                        self.__safe_root = arg.safe_root
                         break
 
                 else:  # no break
                     # Set the safe_root to this path.
-                    self._safe_root = Path(self).resolve()
-                    LOG.debug("No safe root given, using %r", self._safe_root)
+                    self.__safe_root = Path(self).resolve()
+                    LOG.debug("No safe root given, using %r", self.__safe_root)
 
         LOG.debug("Created %r", self)
 
@@ -101,7 +101,7 @@ class PathRoot(Path):
         Returns:
             The trusted root path.
         """
-        return self._safe_root
+        return self.__safe_root
 
     @safe_root.setter
     def safe_root(self, value: Path) -> None:
@@ -113,7 +113,7 @@ class PathRoot(Path):
         Raises:
             AttributeError: If safe_root has already been set.
         """
-        self._safe_root = value
+        self.__safe_root = value
 
     def __repr__(self) -> str:
         """Internal string representation."""
