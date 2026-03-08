@@ -1,6 +1,7 @@
 """Unit tests for pathroot."""
 
 import logging
+import pathlib
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -81,10 +82,12 @@ def _force_posix():
 # endregion
 
 
-# region Tests
+# region Tests - OS-Specific Construction
 @pytest.mark.usefixtures("_force_nt")
 def test_new_windows(root_folder):
-    """Test that PathRoot, on Windows, returns a WindowsPathRoot instance."""
+    """Test that PathRoot on Windows returns a WindowsPathRoot instance."""
+    # Arrange (OS_NAME is set to "nt" by _force_nt fixture)
+
     # Act
     r = pathroot.PathRoot(root_folder)
 
@@ -94,7 +97,9 @@ def test_new_windows(root_folder):
 
 @pytest.mark.usefixtures("_force_posix")
 def test_new_posix(root_folder):
-    """Test that PathRoot, on a POSIX OS, returns a PosixPathRoot instance."""
+    """Test that PathRoot on POSIX OS returns a PosixPathRoot instance."""
+    # Arrange (OS_NAME is set to "darwin" by _force_posix fixture)
+
     # Act
     r = pathroot.PathRoot(root_folder)
 
@@ -102,8 +107,12 @@ def test_new_posix(root_folder):
     assert type(r) is pathroot.PosixPathRoot
 
 
+# endregion
+
+
+# region Tests - Path Operations (Success Cases)
 def test_joinpath_works(root_folder):
-    """Test that when we use joinpath with a path inside the the root, it works, and we get a PathRoot instance."""
+    """Test joinpath with path inside root works and returns PathRoot."""
     # Arrange
     r = pathroot.PathRoot(root_folder)
 
@@ -115,18 +124,8 @@ def test_joinpath_works(root_folder):
     assert p1.safe_root is r.safe_root
 
 
-def test_joinpath_errors(root_folder):
-    """Test that when we use joinpath with a path outside the root, it raises a PathOutsideRootError."""
-    # Arrange
-    r = pathroot.PathRoot(root_folder)
-
-    # Act and Assert
-    with pytest.raises(pathroot.PathOutsideRootError):
-        r.joinpath("..", "..", "etc")
-
-
 def test_divide_works(root_folder):
-    """Test that when we use the divide operator inside the root, it works, and we get a PathRoot instance."""
+    """Test divide operator inside root works and returns PathRoot."""
     # Arrange
     r = pathroot.PathRoot(root_folder)
 
@@ -138,18 +137,8 @@ def test_divide_works(root_folder):
     assert p1.safe_root is r.safe_root
 
 
-def test_divide_errors(root_folder):
-    """Test that when we use the divide operator outside the root, it raises a PathOutsideRootError."""
-    # Arrange
-    r = pathroot.PathRoot(root_folder)
-
-    # Act and Assert
-    with pytest.raises(pathroot.PathOutsideRootError):
-        r / ".." / ".." / "etc"
-
-
 def test_with_segments_works(root_folder):
-    """Test that with_segments with a path inside the root works, and we get a PathRoot instance."""
+    """Test with_segments inside root works and returns PathRoot."""
     # Arrange
     r = pathroot.PathRoot(root_folder)
 
@@ -161,18 +150,8 @@ def test_with_segments_works(root_folder):
     assert p1.safe_root is r.safe_root
 
 
-def test_with_segments_errors(root_folder):
-    """Test that when we use with_segments with a path inside the the root, it works, and we get a PathRoot instance."""
-    # Arrange
-    r = pathroot.PathRoot(root_folder)
-
-    # Act and Assert
-    with pytest.raises(pathroot.PathOutsideRootError):
-        r.with_segments(root_folder, "..", "..", "etc")
-
-
 def test_rename_works(root_folder):
-    """Test that rename works when it should."""
+    """Test rename works and returns PathRoot with same safe_root."""
     # Arrange
     p1 = pathroot.PathRoot(root_folder) / "d1"
 
@@ -184,18 +163,8 @@ def test_rename_works(root_folder):
     assert p2.safe_root is p1.safe_root
 
 
-def test_rename_errors(root_folder):
-    """Test that rename errors when the target path is outside of the root."""
-    # Arrange
-    r = pathroot.PathRoot(root_folder)
-
-    # Act and Assert
-    with pytest.raises(pathroot.PathOutsideRootError):
-        r.rename(root_folder / ".." / ".." / "etc")
-
-
 def test_replace_works(root_folder):
-    """Test that replae works."""
+    """Test replace works and returns PathRoot with same safe_root."""
     # Arrange
     p1 = pathroot.PathRoot(root_folder) / "d1"
 
@@ -207,8 +176,85 @@ def test_replace_works(root_folder):
     assert p2.safe_root is p1.safe_root
 
 
+def test_safe_root_inherits_from_pathroot_argument(tmp_path):
+    """Test that new PathRoot inherits safe_root from PathRoot arg."""
+    # Arrange
+    parent = pathroot.PathRoot(tmp_path)
+
+    # Act
+    child = pathroot.PathRoot(parent, "subdir")
+
+    # Assert
+    assert child.safe_root == parent.safe_root
+    assert isinstance(child, pathroot.PathRoot)
+
+
+def test_rename_accepts_bytes_target_and_moves_file(tmp_path):
+    """Test rename accepts bytes target and moves file inside root."""
+    # Arrange
+    root = tmp_path
+    src = root / "a.txt"
+    dst = root / "b.txt"
+    content = b"hello"
+    src.write_bytes(content)
+    pr_file = pathroot.PathRoot(root) / "a.txt"
+    target_bytes = str(dst).encode("utf-8")
+
+    # Act
+    new_path = pr_file.rename(target_bytes)
+
+    # Assert
+    assert isinstance(new_path, pathroot.PathRoot)
+    assert new_path.exists()
+    assert dst.read_bytes() == content
+
+
+# endregion
+
+
+# region Tests - PathOutsideRootError
+def test_joinpath_errors(root_folder):
+    """Test joinpath raises PathOutsideRootError for paths outside root."""
+    # Arrange
+    r = pathroot.PathRoot(root_folder)
+
+    # Act and Assert
+    with pytest.raises(pathroot.PathOutsideRootError):
+        r.joinpath("..", "..", "etc")
+
+
+def test_divide_errors(root_folder):
+    """Test divide operator raises PathOutsideRootError for outside paths."""
+    # Arrange
+    r = pathroot.PathRoot(root_folder)
+
+    # Act and Assert
+    with pytest.raises(pathroot.PathOutsideRootError):
+        r / ".." / ".." / "etc"
+
+
+def test_with_segments_errors(root_folder):
+    """Test with_segments raises PathOutsideRootError for outside paths."""
+    # Arrange
+    r = pathroot.PathRoot(root_folder)
+
+    # Act and Assert
+    with pytest.raises(pathroot.PathOutsideRootError):
+        r.with_segments(root_folder, "..", "..", "etc")
+
+
+def test_rename_errors(root_folder):
+    """Test rename raises PathOutsideRootError for outside paths."""
+    # Arrange
+    r = pathroot.PathRoot(root_folder)
+
+    # Act and Assert
+    with pytest.raises(pathroot.PathOutsideRootError):
+        r.rename(root_folder / ".." / ".." / "etc")
+
+
 def test_replace_errors(root_folder):
-    """Test that replace errors when the target path is outside of the root."""
+    """Test replace raises PathOutsideRootError for outside paths."""
     # Arrange
     r = pathroot.PathRoot(root_folder)
 
@@ -217,5 +263,103 @@ def test_replace_errors(root_folder):
         r.replace(root_folder / ".." / ".." / "etc")
 
 
-# TODO: Other corner cases?
+def test_pathoutsiderooterror_str_contains_paths(tmp_path):
+    """Test PathOutsideRootError string contains path and safe root."""
+    # Arrange
+    root = tmp_path
+    pr = pathroot.PathRoot(root)
+
+    # Act and Assert
+    with pytest.raises(pathroot.PathOutsideRootError) as excinfo:
+        pr.joinpath("..", "..", "outside")
+
+    # Assert
+    err = excinfo.value
+    s = str(err)
+    assert "is outside of" in s
+    assert str(err.path.resolve()) in s
+    assert str(err.root) in s
+
+
+def test_symlink_to_raises_for_outside_target(tmp_path):
+    """Test symlink_to raises PathOutsideRootError for outside target."""
+    # Arrange
+    root = tmp_path
+    pr = pathroot.PathRoot(root)
+    outside = root / ".." / "etc"
+
+    # Act and Assert
+    with pytest.raises(pathroot.PathOutsideRootError):
+        pr.symlink_to(outside)
+
+
+def test_hardlink_to_raises_for_outside_target(tmp_path):
+    """Test hardlink_to raises PathOutsideRootError for outside target."""
+    # Arrange
+    root = tmp_path
+    pr = pathroot.PathRoot(root)
+    outside = root / ".." / "etc"
+
+    # Act and Assert
+    with pytest.raises(pathroot.PathOutsideRootError):
+        pr.hardlink_to(outside)
+
+
+# endregion
+
+
+# region Tests - Link Methods (Success Cases)
+def test_symlink_to_accepts_bytes_target_and_preserves_safe_root(monkeypatch, tmp_path):
+    """Test symlink_to accepts bytes and passes PathRoot to super."""
+    # Arrange
+    root = tmp_path
+    (root / "target.txt").write_bytes(b"x")
+    pr_link = pathroot.PathRoot(root) / "link"
+    target_bytes = str(root / "target.txt").encode("utf-8")
+    recorded = {}
+
+    def fake_symlink_to(self, target, target_is_directory=False):
+        recorded["self"] = self
+        recorded["target"] = target
+        recorded["target_is_directory"] = target_is_directory
+        return None
+
+    monkeypatch.setattr(pathlib.Path, "symlink_to", fake_symlink_to, raising=True)
+
+    # Act
+    pr_link.symlink_to(target_bytes, target_is_directory=False)
+
+    # Assert
+    assert "target" in recorded
+    target_passed = recorded["target"]
+    assert isinstance(target_passed, pathroot.PathRoot)
+    assert target_passed.safe_root == pr_link.safe_root
+
+
+def test_hardlink_to_accepts_bytes_target_and_calls_super(monkeypatch, tmp_path):
+    """Test hardlink_to accepts bytes and passes PathRoot to super."""
+    # Arrange
+    root = tmp_path
+    (root / "target.txt").write_bytes(b"x")
+    pr_link = pathroot.PathRoot(root) / "linkfile"
+    target_bytes = str(root / "target.txt").encode("utf-8")
+    recorded = {}
+
+    def fake_hardlink_to(self, target):
+        recorded["self"] = self
+        recorded["target"] = target
+        return None
+
+    monkeypatch.setattr(pathlib.Path, "hardlink_to", fake_hardlink_to, raising=False)
+
+    # Act
+    pr_link.hardlink_to(target_bytes)
+
+    # Assert
+    assert "target" in recorded
+    target_passed = recorded["target"]
+    assert isinstance(target_passed, pathroot.PathRoot)
+    assert target_passed.safe_root == pr_link.safe_root
+
+
 # endregion

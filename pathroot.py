@@ -71,9 +71,11 @@ class PathRoot(Path):
                     if isinstance(arg, PathRoot):
                         safe_root = arg.safe_root
                         break
+
                 else:  # no break
                     # Set the safe_root to this path.
                     safe_root = Path(self)
+                    LOG.debug("No safe root given, using %r", safe_root)
 
         self.safe_root = safe_root.resolve()  # Ensure safe_root is resolved.
         LOG.debug("Created %r", self)
@@ -104,7 +106,7 @@ class PathRoot(Path):
             case os.PathLike() | str():
                 p = Path(path).resolve()  # ty:ignore[invalid-argument-type]
 
-        LOG.debug("Testing %s against %s", p, self.safe_root)
+        LOG.debug("Testing %r against %r", p, self.safe_root)
         if not p.is_relative_to(self.safe_root):
             raise PathOutsideRootError(p, self.safe_root)
 
@@ -114,7 +116,10 @@ class PathRoot(Path):
                 path.safe_root = self.safe_root
 
             # If the path is not a PathRoot, make it one.
-            case Path() | str() | bytes() | os.PathLike() if not isinstance(path, PathRoot):
+            case bytes():
+                path = PathRoot(path.decode("UTF-8"), safe_root=self.safe_root)
+
+            case Path() | str() | os.PathLike() if not isinstance(path, PathRoot):
                 path = PathRoot(path, safe_root=self.safe_root)
 
             case _:
