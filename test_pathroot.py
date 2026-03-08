@@ -121,7 +121,7 @@ def test_joinpath_works(root_folder):
 
     # Assert
     assert isinstance(p1, pathroot.PathRoot)
-    assert p1.safe_root is r.safe_root
+    assert p1.safe_root == r.safe_root
 
 
 def test_divide_works(root_folder):
@@ -134,7 +134,7 @@ def test_divide_works(root_folder):
 
     # Assert
     assert isinstance(p1, pathroot.PathRoot)
-    assert p1.safe_root is r.safe_root
+    assert p1.safe_root == r.safe_root
 
 
 def test_with_segments_works(root_folder):
@@ -147,7 +147,7 @@ def test_with_segments_works(root_folder):
 
     # Assert
     assert isinstance(p1, pathroot.PathRoot)
-    assert p1.safe_root is r.safe_root
+    assert p1.safe_root == r.safe_root
 
 
 def test_rename_works(root_folder):
@@ -160,7 +160,7 @@ def test_rename_works(root_folder):
 
     # Assert
     assert isinstance(p2, pathroot.PathRoot)
-    assert p2.safe_root is p1.safe_root
+    assert p2.safe_root == p1.safe_root
 
 
 def test_replace_works(root_folder):
@@ -173,7 +173,7 @@ def test_replace_works(root_folder):
 
     # Assert
     assert isinstance(p2, pathroot.PathRoot)
-    assert p2.safe_root is p1.safe_root
+    assert p2.safe_root == p1.safe_root
 
 
 def test_safe_root_inherits_from_pathroot_argument(tmp_path):

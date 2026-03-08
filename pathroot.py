@@ -64,21 +64,56 @@ class PathRoot(Path):
         # and see if we have any PathRoot instances... first one wins.
         match safe_root:
             case str() | bytes() | os.PathLike() | Path():
-                safe_root = Path(safe_root)
+                self._safe_root = Path(safe_root).resolve()
 
             case _:
                 for arg in args:
                     if isinstance(arg, PathRoot):
-                        safe_root = arg.safe_root
+                        self._safe_root = arg.safe_root
                         break
 
                 else:  # no break
                     # Set the safe_root to this path.
-                    safe_root = Path(self)
-                    LOG.debug("No safe root given, using %r", safe_root)
+                    self._safe_root = Path(self).resolve()
+                    LOG.debug("No safe root given, using %r", self._safe_root)
 
-        self.safe_root = safe_root.resolve()  # Ensure safe_root is resolved.
         LOG.debug("Created %r", self)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        """Override setattr to make safe_root immutable after initialization.
+
+        Args:
+            name: Attribute name.
+            value: Attribute value.
+
+        Raises:
+            AttributeError: If trying to modify safe_root after initialization.
+        """
+        if name == "_safe_root" and hasattr(self, "_safe_root"):
+            msg = "safe_root is immutable and can only be set during initialization"
+            raise AttributeError(msg)
+        super().__setattr__(name, value)
+
+    @property
+    def safe_root(self) -> Path:
+        """Get the safe root path.
+
+        Returns:
+            The trusted root path.
+        """
+        return self._safe_root
+
+    @safe_root.setter
+    def safe_root(self, value: Path) -> None:
+        """Set the safe root path (only allowed during initialization).
+
+        Args:
+            value: The new safe root path.
+
+        Raises:
+            AttributeError: If safe_root has already been set.
+        """
+        self._safe_root = value
 
     def __repr__(self) -> str:
         """Internal string representation."""
@@ -111,9 +146,11 @@ class PathRoot(Path):
             raise PathOutsideRootError(p, self.safe_root)
 
         match path:
-            # If the path is a PathRoot with no safe_root set, set it.
+            # If the path is a PathRoot, ensure it has the correct safe_root
             case PathRoot():
-                path.safe_root = self.safe_root
+                # Create a new PathRoot with the correct safe_root if needed
+                if path.safe_root != self.safe_root:
+                    path = PathRoot(path, safe_root=self.safe_root)
 
             # If the path is not a PathRoot, make it one.
             case bytes():
@@ -155,7 +192,8 @@ class PathRoot(Path):
             interpreted relative to the current working directory *not* the
             directory of the Path object.
         """
-        return super().rename(self.__check_path(target))
+        result = super().rename(self.__check_path(target))
+        return PathRoot(result, safe_root=self.safe_root)
 
     def replace(
         self,
@@ -174,7 +212,8 @@ class PathRoot(Path):
             interpreted relative to the current working directory *not* the
             directory of the Path object.
         """
-        return super().replace(self.__check_path(target))
+        result = super().replace(self.__check_path(target))
+        return PathRoot(result, safe_root=self.safe_root)
 
     def symlink_to(
         self,
