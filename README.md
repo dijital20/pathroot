@@ -17,7 +17,7 @@ You can install PathRoot using pip:
 pip install pathroot
 ```
 
-PathRoot requires Python 3.10 or higher and has no external dependencies.
+PathRoot requires Python 3.12 or higher and has no external dependencies.
 
 ## How to Use PathRoot
 
