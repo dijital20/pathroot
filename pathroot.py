@@ -63,7 +63,11 @@ class PathRoot(Path):
         # If the safe_root is None, then one was not provided. Look through the args
         # and see if we have any PathRoot instances... first one wins.
         match safe_root:
-            case str() | bytes() | os.PathLike() | Path():
+            case bytes():
+                # Accept bytes by decoding using UTF-8
+                self.__safe_root = Path(safe_root.decode("UTF-8")).resolve()
+
+            case str() | os.PathLike() | Path():
                 self.__safe_root = Path(safe_root).resolve()
 
             case _:
@@ -87,21 +91,6 @@ class PathRoot(Path):
             The trusted root path.
         """
         return self.__safe_root
-
-    @safe_root.setter
-    def safe_root(self, value: Path) -> None:
-        """Set the safe root path (only allowed during initialization).
-
-        Args:
-            value: The new safe root path.
-
-        Raises:
-            AttributeError: If safe_root has already been set.
-        """
-        if hasattr(self, "_PathRoot__safe_root"):
-            msg = "safe_root is read-only after initialization"
-            raise AttributeError(msg)
-        self.__safe_root = value
 
     def __repr__(self) -> str:
         """Internal string representation."""
