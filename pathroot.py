@@ -116,7 +116,10 @@ class PathRoot(Path):
             case bytes():
                 p = Path(path.decode("UTF-8")).resolve()
 
-            case Path() | str() | os.PathLike():
+            case os.PathLike():
+                p = Path(os.fspath(path)).resolve()
+
+            case Path() | str():
                 p = Path(path).resolve()
 
             case _:
