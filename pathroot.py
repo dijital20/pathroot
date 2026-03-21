@@ -67,8 +67,11 @@ class PathRoot(Path):
                 # Accept bytes by decoding using UTF-8
                 self.__safe_root = Path(safe_root.decode("UTF-8")).resolve()
 
-            case str() | os.PathLike() | Path():
+            case str():
                 self.__safe_root = Path(safe_root).resolve()
+
+            case os.PathLike():
+                self.__safe_root = Path(os.fspath(safe_root)).resolve()
 
             case _:
                 for arg in args:
