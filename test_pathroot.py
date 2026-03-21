@@ -187,6 +187,44 @@ def test_new_posix(root_folder):
     assert type(r) is pathroot.PosixPathRoot
 
 
+@pytest.mark.usefixtures("_force_nt")
+def test_windows_operations_preserve_type(root_folder):
+    """Non-mutating path operations on a WindowsPathRoot return WindowsPathRoot instances.
+
+    rename/replace are not exercised here because WindowsPath formats paths with
+    backslashes, causing OS-level failures on non-Windows systems.
+    """
+    # Arrange
+    r = pathroot.PathRoot(root_folder)
+    assert type(r) is pathroot.WindowsPathRoot
+
+    # Act / Assert
+    assert type(r / "d1") is pathroot.WindowsPathRoot
+    assert type(r.joinpath("d1")) is pathroot.WindowsPathRoot
+    assert type(r.with_segments(root_folder, "d1")) is pathroot.WindowsPathRoot
+
+
+@pytest.mark.usefixtures("_force_posix")
+def test_posix_operations_preserve_type(root_folder):
+    """Path operations on a PosixPathRoot return PosixPathRoot instances."""
+    # Arrange
+    r = pathroot.PathRoot(root_folder)
+    assert type(r) is pathroot.PosixPathRoot
+
+    # Act / Assert - non-mutating operations
+    assert type(r / "d1") is pathroot.PosixPathRoot
+    assert type(r.joinpath("d1")) is pathroot.PosixPathRoot
+    assert type(r.with_segments(root_folder, "d1")) is pathroot.PosixPathRoot
+
+    # Act / Assert - rename
+    d1 = r / "d1"
+    assert type(d1.rename(root_folder / "d3")) is pathroot.PosixPathRoot
+
+    # Act / Assert - replace
+    d2 = r / "d2"
+    assert type(d2.replace(root_folder / "d4")) is pathroot.PosixPathRoot
+
+
 # endregion
 
 

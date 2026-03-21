@@ -217,6 +217,14 @@ class PathRoot(Path):
 class PosixPathRoot(PosixPath, PathRoot):
     """Path that does not allow traversal outside of root for Linux/MacOS."""
 
+    def __new__(cls, *args, **kwargs):  # noqa: ARG004
+        """Bypass PosixPath's platform guard and delegate to object.__new__."""
+        return object.__new__(cls)
+
 
 class WindowsPathRoot(WindowsPath, PathRoot):
     """Path that does not allow traversal outside of the root for Windows."""
+
+    def __new__(cls, *args, **kwargs):  # noqa: ARG004
+        """Bypass WindowsPath's platform guard and delegate to object.__new__."""
+        return object.__new__(cls)
