@@ -54,6 +54,7 @@ select = [
 ignore = [
     "ANN002", # No need to type *args
     "ANN003", # No need to type **kwargs
+    "ANN204", # No need for type hints for magic methods.
 ]
 
 [tool.ruff.lint.extend-per-file-ignores]
