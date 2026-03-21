@@ -1,6 +1,6 @@
 [project]
 name = "pathroot"
-version = "1.1.0"
+version = "1.1.1"
 description = "Subclass of a pathlib.Path object that does not allow traversal outside of a trusted root."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -11,11 +11,7 @@ license = "MIT"
 keywords = ["path", "pathlib", "filesystem"]
 
 [dependency-groups]
-dev = [
-    "pytest>=9.0.2",
-    "ruff>=0.15.4",
-    "ty>=0.0.20",
-]
+dev = ["pytest>=9.0.2", "ruff>=0.15.4", "ty>=0.0.20"]
 
 [build-system]
 requires = ["setuptools"]
@@ -58,6 +54,7 @@ select = [
 ignore = [
     "ANN002", # No need to type *args
     "ANN003", # No need to type **kwargs
+    "ANN204", # No need for type hints for magic methods.
 ]
 
 [tool.ruff.lint.extend-per-file-ignores]

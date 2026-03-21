@@ -63,8 +63,15 @@ class PathRoot(Path):
         # If the safe_root is None, then one was not provided. Look through the args
         # and see if we have any PathRoot instances... first one wins.
         match safe_root:
-            case str() | bytes() | os.PathLike() | Path():
+            case bytes():
+                # Accept bytes by decoding using UTF-8
+                self.__safe_root = Path(safe_root.decode("UTF-8")).resolve()
+
+            case str():
                 self.__safe_root = Path(safe_root).resolve()
+
+            case os.PathLike():
+                self.__safe_root = Path(os.fspath(safe_root)).resolve()
 
             case _:
                 for arg in args:
@@ -79,21 +86,6 @@ class PathRoot(Path):
 
         LOG.debug("Created %r", self)
 
-    def __setattr__(self, name: str, value: object) -> None:
-        """Override setattr to make safe_root immutable after initialization.
-
-        Args:
-            name: Attribute name.
-            value: Attribute value.
-
-        Raises:
-            AttributeError: If trying to modify safe_root after initialization.
-        """
-        if name == "_safe_root" and hasattr(self, "_safe_root"):
-            msg = "safe_root is immutable and can only be set during initialization"
-            raise AttributeError(msg)
-        super().__setattr__(name, value)
-
     @property
     def safe_root(self) -> Path:
         """Get the safe root path.
@@ -102,18 +94,6 @@ class PathRoot(Path):
             The trusted root path.
         """
         return self.__safe_root
-
-    @safe_root.setter
-    def safe_root(self, value: Path) -> None:
-        """Set the safe root path (only allowed during initialization).
-
-        Args:
-            value: The new safe root path.
-
-        Raises:
-            AttributeError: If safe_root has already been set.
-        """
-        self.__safe_root = value
 
     def __repr__(self) -> str:
         """Internal string representation."""
@@ -134,35 +114,27 @@ class PathRoot(Path):
         Raises:
             PathOutsideRootError: If the path traverses outside of the root path.
         """
+        # Normalize input into a resolved pathlib.Path using structural pattern matching
         match path:
             case bytes():
                 p = Path(path.decode("UTF-8")).resolve()
 
-            case os.PathLike() | str():
-                p = Path(path).resolve()  # ty:ignore[invalid-argument-type]
+            case str():
+                p = Path(path).resolve()
+
+            case os.PathLike():
+                p = Path(os.fspath(path)).resolve()
+
+            case _:
+                msg = f"Unsupported path type: {type(path)!r}"
+                raise TypeError(msg)
 
         LOG.debug("Testing %r against %r", p, self.safe_root)
         if not p.is_relative_to(self.safe_root):
             raise PathOutsideRootError(p, self.safe_root)
 
-        match path:
-            # If the path is a PathRoot, ensure it has the correct safe_root
-            case PathRoot():
-                # Create a new PathRoot with the correct safe_root if needed
-                if path.safe_root != self.safe_root:
-                    path = PathRoot(path, safe_root=self.safe_root)
-
-            # If the path is not a PathRoot, make it one.
-            case bytes():
-                path = PathRoot(path.decode("UTF-8"), safe_root=self.safe_root)
-
-            case Path() | str() | os.PathLike() if not isinstance(path, PathRoot):
-                path = PathRoot(path, safe_root=self.safe_root)
-
-            case _:
-                raise TypeError
-
-        return path
+        # Preserve the runtime subclass when returning a PathRoot-like object
+        return type(self)(p, safe_root=self.safe_root)
 
     def with_segments(self, *args) -> PathRoot:
         """Return a new path with segments.
@@ -173,7 +145,9 @@ class PathRoot(Path):
         Returns:
             New path.
         """
-        return self.__check_path(super().with_segments(*args))  # ty:ignore[unresolved-attribute]
+        # Build a Path from the provided segments and validate it.
+        p = Path(*args)
+        return self.__check_path(p)
 
     def rename(
         self,
@@ -193,7 +167,7 @@ class PathRoot(Path):
             directory of the Path object.
         """
         result = super().rename(self.__check_path(target))
-        return PathRoot(result, safe_root=self.safe_root)
+        return type(self)(result, safe_root=self.safe_root)
 
     def replace(
         self,
@@ -213,7 +187,7 @@ class PathRoot(Path):
             directory of the Path object.
         """
         result = super().replace(self.__check_path(target))
-        return PathRoot(result, safe_root=self.safe_root)
+        return type(self)(result, safe_root=self.safe_root)
 
     def symlink_to(
         self,
@@ -243,6 +217,14 @@ class PathRoot(Path):
 class PosixPathRoot(PosixPath, PathRoot):
     """Path that does not allow traversal outside of root for Linux/MacOS."""
 
+    def __new__(cls, *args, **kwargs):  # noqa: ARG004
+        """Bypass PosixPath's platform guard and delegate to object.__new__."""
+        return object.__new__(cls)
+
 
 class WindowsPathRoot(WindowsPath, PathRoot):
     """Path that does not allow traversal outside of the root for Windows."""
+
+    def __new__(cls, *args, **kwargs):  # noqa: ARG004
+        """Bypass WindowsPath's platform guard and delegate to object.__new__."""
+        return object.__new__(cls)

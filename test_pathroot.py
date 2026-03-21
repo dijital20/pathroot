@@ -1,6 +1,7 @@
 """Unit tests for pathroot."""
 
 import logging
+import os
 import pathlib
 from contextlib import contextmanager
 from pathlib import Path
@@ -82,6 +83,85 @@ def _force_posix():
 # endregion
 
 
+# region Tests - Init Behavior
+def test_safe_root_accepts_str_bytes_and_pathlike(tmp_path):
+    """safe_root accepts str, bytes, and os.PathLike values."""
+    # Arrange
+    root = tmp_path
+
+    class MyPathLike:
+        def __fspath__(self) -> str:
+            return str(root)
+
+    # Act
+    pr_str = pathroot.PathRoot(root, safe_root=str(root))
+    pr_bytes = pathroot.PathRoot(root, safe_root=str(root).encode("utf-8"))
+    pr_pathlike = pathroot.PathRoot(root, safe_root=MyPathLike())
+
+    # Assert
+    expected = Path(root).resolve()
+    assert pr_str.safe_root == expected
+    assert pr_bytes.safe_root == expected
+    assert pr_pathlike.safe_root == expected
+
+
+def test_safe_root_kwarg_precedence(tmp_path):
+    """`safe_root` kwarg takes precedence over a PathRoot positional arg."""
+    # Arrange
+    parent = pathroot.PathRoot(tmp_path / "parent")
+    override = tmp_path / "override"
+    override.mkdir()
+
+    # Act
+    child = pathroot.PathRoot(parent, "child", safe_root=override)
+
+    # Assert
+    assert child.safe_root == override.resolve()
+
+
+def test_default_safe_root_when_not_provided(tmp_path):
+    """Default `safe_root` is the instance's resolved path when not provided."""
+    # Arrange
+    instance_path = tmp_path / "mysub"
+
+    # Act
+    pr = pathroot.PathRoot(instance_path)
+
+    # Assert
+    assert pr.safe_root == instance_path.resolve()
+
+
+def test_construct_from_bytes_and_str_segments(tmp_path):
+    """Constructing from a str path creates a `PathRoot` and sets `safe_root`."""
+    # Arrange
+    root = tmp_path
+
+    # Act
+    pr_from_str = pathroot.PathRoot(str(root))
+
+    # Assert
+    assert isinstance(pr_from_str, pathroot.PathRoot)
+    assert pr_from_str.safe_root == root.resolve()
+
+
+def test_safe_root_resolves_symlink(tmp_path):
+    """`safe_root` resolves symlinks by default."""
+    # Arrange
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(real)
+
+    # Act
+    pr = pathroot.PathRoot(link)
+
+    # Assert
+    assert pr.safe_root == real.resolve()
+
+
+# endregion
+
+
 # region Tests - OS-Specific Construction
 @pytest.mark.usefixtures("_force_nt")
 def test_new_windows(root_folder):
@@ -105,6 +185,58 @@ def test_new_posix(root_folder):
 
     # Assert
     assert type(r) is pathroot.PosixPathRoot
+
+
+@pytest.mark.usefixtures("_force_nt")
+def test_windows_operations_preserve_type(root_folder):
+    """Non-mutating path operations on a WindowsPathRoot return WindowsPathRoot instances.
+
+    rename/replace are not exercised here because WindowsPath formats paths with
+    backslashes, causing OS-level failures on non-Windows systems.
+    """
+    # Arrange
+    r = pathroot.PathRoot(root_folder)
+    assert type(r) is pathroot.WindowsPathRoot
+
+    # Act / Assert
+    assert type(r / "d1") is pathroot.WindowsPathRoot
+    assert type(r.joinpath("d1")) is pathroot.WindowsPathRoot
+    assert type(r.with_segments(root_folder, "d1")) is pathroot.WindowsPathRoot
+
+
+@pytest.mark.usefixtures("_force_posix")
+def test_posix_operations_preserve_type(root_folder):
+    """Path operations on a PosixPathRoot return PosixPathRoot instances."""
+    # Arrange
+    r = pathroot.PathRoot(root_folder)
+    assert type(r) is pathroot.PosixPathRoot
+
+    # Act / Assert - non-mutating operations
+    assert type(r / "d1") is pathroot.PosixPathRoot
+    assert type(r.joinpath("d1")) is pathroot.PosixPathRoot
+    assert type(r.with_segments(root_folder, "d1")) is pathroot.PosixPathRoot
+
+    # Act / Assert - rename
+    d1 = r / "d1"
+    assert type(d1.rename(root_folder / "d3")) is pathroot.PosixPathRoot
+
+    # Act / Assert - replace
+    d2 = r / "d2"
+    assert type(d2.replace(root_folder / "d4")) is pathroot.PosixPathRoot
+
+
+# endregion
+
+
+# region Tests - Construction and Safe Root
+def test_safe_root_is_immutable(tmp_path):
+    """Assigning to `safe_root` should raise an AttributeError."""
+    # Arrange
+    pr = pathroot.PathRoot(tmp_path)
+
+    # Act and Assert
+    with pytest.raises(AttributeError):
+        pr.safe_root = tmp_path / "other"
 
 
 # endregion
@@ -360,6 +492,62 @@ def test_hardlink_to_accepts_bytes_target_and_calls_super(monkeypatch, tmp_path)
     target_passed = recorded["target"]
     assert isinstance(target_passed, pathroot.PathRoot)
     assert target_passed.safe_root == pr_link.safe_root
+
+
+# endregion
+
+
+# region Tests - Actual Link Creation (Edge Cases)
+def test_symlink_to_creates_link_for_inside_target(tmp_path):
+    """Test that symlink_to actually creates a link when target is inside root."""
+    # Arrange
+    root = tmp_path
+    target = root / "inside.txt"
+    target.write_bytes(b"inside")
+    link = pathroot.PathRoot(root) / "mylink"
+
+    # Act
+    link.symlink_to(target)
+
+    # Assert
+    assert link.exists()
+    assert link.is_symlink()
+    # reading via the symlink should give the same bytes
+    assert (root / "mylink").read_bytes() == b"inside"
+
+
+def test_symlink_to_rejects_actual_outside_target(tmp_path):
+    """Test that symlink_to raises when target is an actual file outside the root."""
+    # Arrange
+    root = tmp_path
+    outside_dir = tmp_path.parent / (tmp_path.name + "_outside")
+    outside_dir.mkdir(exist_ok=True)
+    outside_file = outside_dir / "outside.txt"
+    outside_file.write_bytes(b"outside")
+
+    pr = pathroot.PathRoot(root)
+    link = pr / "badlink"
+
+    # Act / Assert
+    with pytest.raises(pathroot.PathOutsideRootError):
+        link.symlink_to(outside_file)
+
+
+def test_hardlink_to_rejects_actual_outside_target(tmp_path):
+    """Test that hardlink_to raises when target is an actual file outside the root."""
+    # Arrange
+    root = tmp_path
+    outside_dir = tmp_path.parent / (tmp_path.name + "_outside_hl")
+    outside_dir.mkdir(exist_ok=True)
+    outside_file = outside_dir / "outside_hl.txt"
+    outside_file.write_bytes(b"outside-hl")
+
+    pr = pathroot.PathRoot(root)
+    link = pr / "badhardlink"
+
+    # Act / Assert
+    with pytest.raises(pathroot.PathOutsideRootError):
+        link.hardlink_to(outside_file)
 
 
 # endregion
