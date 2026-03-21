@@ -119,11 +119,11 @@ class PathRoot(Path):
             case bytes():
                 p = Path(path.decode("UTF-8")).resolve()
 
+            case str():
+                p = Path(path).resolve()
+
             case os.PathLike():
                 p = Path(os.fspath(path)).resolve()
-
-            case Path() | str():
-                p = Path(path).resolve()
 
             case _:
                 msg = f"Unsupported path type: {type(path)!r}"
